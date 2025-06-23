@@ -1,0 +1,1174 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Juegos Multimodo</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #222;
+      color: #eee;
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1 {
+      margin-bottom: 15px;
+      animation: slideIn 1s ease-out;
+    }
+    #menu {
+      margin-bottom: 20px;
+      animation: fadeIn 1s ease-out;
+    }
+    button {
+      background: #444;
+      color: #eee;
+      border: none;
+      padding: 10px 16px;
+      margin: 6px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: transform 0.3s, background 0.3s, box-shadow 0.3s;
+    }
+    button:hover {
+      transform: scale(1.1);
+      background: #666;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+    }
+    #gameArea {
+      background: #333;
+      padding: 20px;
+      border-radius: 8px;
+      width: 100%;
+      max-width: 600px;
+      min-height: 400px;
+      box-sizing: border-box;
+      display: none;
+      animation: fadeIn 1s ease-out;
+    }
+    canvas {
+      width: 100%;
+      height: 400px;
+      border: 3px solid #2a9d8f;
+      border-radius: 6px;
+    }
+    input[type="number"], input[type="text"] {
+      padding: 8px;
+      font-size: 16px;
+      border-radius: 5px;
+      border: none;
+      margin-right: 8px;
+      width: 100px;
+    }
+    .memory-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .memory-card {
+      background: #555;
+      border-radius: 6px;
+      height: 80px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 30px;
+      cursor: pointer;
+      user-select: none;
+      color: transparent;
+      transition: transform 0.5s, background 0.3s;
+    }
+    .memory-card.flipped, .memory-card.matched {
+      color: #eee;
+      background: #2a9d8f;
+      transform: rotateY(180deg);
+      cursor: default;
+    }
+    .rps-buttons button {
+      width: 100px;
+      margin: 10px 5px;
+    }
+    #clickArea {
+      margin-top: 20px;
+      height: 200px;
+      background: #444;
+      border-radius: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+    .click-target {
+      position: absolute;
+      background: #e76f51;
+      border-radius: 50%;
+      cursor: pointer;
+      animation: spin 2s infinite linear;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes slideIn {
+      from { transform: translateY(-20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.2); }
+      100% { transform: scale(1); }
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .pulse { animation: pulse 1s infinite; }
+  </style>
+</head>
+<body>
+  <h1>Juegos Multimodo</h1>
+  <div id="menu">
+    <button onclick="selectGame(1)">Adivina el Número</button>
+    <button onclick="selectGame(2)">Memoria</button>
+    <button onclick="selectGame(3)">Trivia</button>
+    <button onclick="selectGame(4)">Piedra, Papel o Tijeras</button>
+    <button onclick="selectGame(5)">Laberinto</button>
+    <button onclick="selectGame(6)">Click Rápido</button>
+    <button onclick="selectGame(7)">Recoge las Estrellas</button>
+    <button onclick="selectGame(8)">Escapar del Laberinto</button>
+  </div>
+  <div id="gameArea"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+  <script>
+    const gameArea = document.getElementById('gameArea');
+    let currentGame = 0;
+
+    // --- Juego 1: Adivina el Número ---
+    function juegoAdivinaNumero() {
+      gameArea.innerHTML = `
+        <h2>Adivina el Número</h2>
+        <p>Estoy pensando en un número entre 0 y 40. ¡Adivina cuál es!</p>
+        <input id="guessInput" type="number" min="0" max="40" placeholder="Tu número" />
+        <button id="guessBtn">Adivinar</button>
+        <div id="message" style="margin-top:15px; min-height:24px;"></div>
+        <button id="resetBtn" style="margin-top:20px; display:none; background:#b33; color:#eee; border:none; padding:8px 12px; border-radius:5px; cursor:pointer;">Jugar otra vez</button>
+        <button id="backBtn" style="margin-top:20px; background:#b33; color:#eee; border:none; padding:8px 12px; border-radius:5px; cursor:pointer;">Volver al Menú</button>
+      `;
+      let level = 1;
+      let maxRange = 40;
+      let secretNumber = Math.floor(Math.random() * (maxRange + 1));
+      let attempts = 0;
+
+      const guessInput = document.getElementById('guessInput');
+      const guessBtn = document.getElementById('guessBtn');
+      const message = document.getElementById('message');
+      const resetBtn = document.getElementById('resetBtn');
+      const backBtn = document.getElementById('backBtn');
+
+      guessBtn.onclick = () => {
+        const guess = Number(guessInput.value);
+        if (!guess || guess < 0 || guess > maxRange) {
+          message.textContent = "Por favor, ingresa un número válido entre 0 y " + maxRange + ".";
+          return;
+        }
+        attempts++;
+        if (guess === secretNumber) {
+          message.innerHTML = `<span style="font-size:24px; color:#e76f51;">JAJI TE LA COMES CRUZADA</span><br>¡Adivinaste en ${attempts} intento${attempts > 1 ? 's' : ''}!`;
+          message.classList.add('pulse');
+          resetBtn.style.display = 'inline-block';
+          guessBtn.disabled = true;
+          guessInput.disabled = true;
+          setTimeout(nextLevel, 2000);
+        } else if (guess < secretNumber) {
+          message.textContent = "Demasiado bajo. Intenta un número mayor.";
+          message.style.opacity = 0;
+          setTimeout(() => {
+            message.style.transition = 'opacity 0.3s';
+            message.style.opacity = 1;
+          }, 10);
+        } else {
+          message.textContent = "Demasiado alto. Intenta un número menor.";
+          message.style.opacity = 0;
+          setTimeout(() => {
+            message.style.transition = 'opacity 0.3s';
+            message.style.opacity = 1;
+          }, 10);
+        }
+        guessInput.value = "";
+        guessInput.focus();
+      };
+
+      function nextLevel() {
+        level++;
+        maxRange -= 5;
+        if (maxRange < 10) maxRange = 10;
+        secretNumber = Math.floor(Math.random() * (maxRange + 1));
+        attempts = 0;
+        message.textContent = "";
+        message.classList.remove('pulse');
+        guessBtn.disabled = false;
+        guessInput.disabled = false;
+        guessInput.value = "";
+        resetBtn.style.display = 'none';
+        guessInput.focus();
+      }
+
+      resetBtn.onclick = () => {
+        level = 1;
+        maxRange = 40;
+        secretNumber = Math.floor(Math.random() * (maxRange + 1));
+        attempts = 0;
+        message.textContent = "";
+        guessBtn.disabled = false;
+        guessInput.disabled = false;
+        guessInput.value = "";
+        resetBtn.style.display = 'none';
+        guessInput.focus();
+      };
+
+      backBtn.onclick = () => {
+        clearInterval(gameInterval);
+        gameArea.style.display = 'none';
+        document.getElementById('menu').style.display = 'flex';
+        currentGame = 0;
+      };
+    }
+
+    // --- Juego 2: Memoria ---
+    function juegoMemoria() {
+      gameArea.innerHTML = `
+        <h2>Memoria</h2>
+        <p>Encuentra los pares iguales.</p>
+        <div class="memory-grid" id="memoryGrid"></div>
+        <div id="memoryMessage" style="margin-top:15px; font-size:18px; min-height:24px;"></div>
+        <button id="memoryReset" style="margin-top:20px; background:#b33; color:#eee; border:none; padding:8px 12px; border-radius:5px; cursor:pointer;">Reiniciar</button>
+        <button id="backBtn" style="margin-top:20px; background:#b33; color:#eee; border:none; padding:8px 12px; border-radius:5px; cursor:pointer;">Volver al Menú</button>
+      `;
+      let level = 1;
+      const baseSymbols = ['🍎','🍌','🍇','🍉','🍒','🥝','🍍','🍓'];
+      let symbols = [...baseSymbols, ...baseSymbols];
+      let cards = [...symbols];
+      let flippedCards = [];
+      let matchedCount = 0;
+
+      const memoryGrid = document.getElementById('memoryGrid');
+      const memoryMessage = document.getElementById('memoryMessage');
+      const memoryReset = document.getElementById('memoryReset');
+      const backBtn = document.getElementById('backBtn');
+
+      function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+          let j = Math.floor(Math.random() * (i + 1));
+          [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+      }
+
+      function createCard(symbol, index) {
+        const card = document.createElement('div');
+        card.classList.add('memory-card');
+        card.dataset.symbol = symbol;
+        card.dataset.index = index;
+        card.textContent = symbol;
+        card.style.color = 'transparent';
+
+        card.onclick = () => {
+          if (flippedCards.length >= 2 || card.classList.contains('flipped') || card.classList.contains('matched') || !gameActive) return;
+
+          card.classList.add('flipped');
+          card.style.color = '#eee';
+          flippedCards.push(card);
+
+          if (flippedCards.length === 2) {
+            if (flippedCards[0].dataset.symbol === flippedCards[1].dataset.symbol) {
+              flippedCards.forEach(c => {
+                c.classList.add('matched');
+                c.style.color = '#2a9d8f';
+              });
+              matchedCount += 2;
+              memoryMessage.textContent = `¡Encontraste un par! Pares: ${matchedCount / 2}/${cards.length / 2}`;
+              flippedCards = [];
+              if (matchedCount === cards.length) {
+                memoryMessage.textContent = "¡Ganaste! Reorganizando...";
+                setTimeout(nextLevel, 2000);
+              }
+            } else {
+              memoryMessage.textContent = "No coinciden, intenta de nuevo.";
+              setTimeout(() => {
+                flippedCards.forEach(c => {
+                  c.classList.remove('flipped');
+                  c.style.color = 'transparent';
+                });
+                flippedCards = [];
+                memoryMessage.textContent = "";
+              }, 1000);
+            }
+          }
+        };
+
+        return card;
+      }
+
+      function setupGame() {
+        memoryGrid.innerHTML = '';
+        flippedCards = [];
+        matchedCount = 0;
+        memoryMessage.textContent = '';
+        cards = [...symbols];
+        if (level > 1) cards = [...cards, ...baseSymbols.slice(0, level * 2)].sort(() => Math.random() - 0.5);
+        shuffle(cards);
+        cards.forEach((symbol, i) => {
+          const card = createCard(symbol, i);
+          memoryGrid.appendChild(card);
+        });
+      }
+
+      function nextLevel() {
+        level++;
+        memoryMessage.textContent = `Nivel ${level} cargado!`;
+        setTimeout(() => {
+          memoryMessage.textContent = "";
+          setupGame();
+        }, 1000);
+      }
+
+      setupGame();
+      memoryReset.onclick = setupGame;
+      backBtn.onclick = () => {
+        clearInterval(gameInterval);
+        gameArea.style.display = 'none';
+        document.getElementById('menu').style.display = 'flex';
+        currentGame = 0;
+      };
+    }
+
+    // --- Juego 3: Trivia ---
+    function juegoTrivia() {
+      gameArea.innerHTML = `
+        <h2>Trivia</h2>
+        <div id="triviaQuestion" style="font-size:18px; margin-bottom:15px;"></div>
+        <div id="triviaOptions"></div>
+        <div id="triviaMessage" style="margin-top:15px; min-height:24px; font-weight:bold;"></div>
+        <button id="triviaNext" style="margin-top:20px; display:none;">Siguiente pregunta</button>
+        <button id="triviaReset" style="margin-top:20px; background:#b33; color:#eee; border:none; padding:8px 12px; border-radius:5px; cursor:pointer;">Reiniciar Trivia</button>
+        <button id="backBtn" style="margin-top:20px; background:#b33; color:#eee; border:none; padding:8px 12px; border-radius:5px; cursor:pointer;">Volver al Menú</button>
+        <div style="margin-top:15px; font-weight:bold;">Puntaje: <span id="triviaScore">0</span></div>
+      `;
+      const questions = [
+        { question: "¿Cuál es la capital de Chile?", options: ["Santiago", "Buenos Aires", "Lima", "Montevideo"], answer: 0 },
+        { question: "¿Qué planeta es conocido como el Planeta Rojo?", options: ["Venus", "Marte", "Júpiter", "Saturno"], answer: 1 },
+        { question: "¿Cuál es el río más largo del mundo?", options: ["Nilo", "Amazonas", "Yangtsé", "Misisipi"], answer: 1 }
+      ];
+      let level = 1;
+      let currentQ = 0;
+      let score = 0;
+
+      const questionDiv = document.getElementById('triviaQuestion');
+      const optionsDiv = document.getElementById('triviaOptions');
+      const messageDiv = document.getElementById('triviaMessage');
+      const nextBtn = document.getElementById('triviaNext');
+      const resetBtn = document.getElementById('triviaReset');
+      const backBtn = document.getElementById('backBtn');
+      const scoreSpan = document.getElementById('triviaScore');
+
+      function loadQuestion() {
+        if (currentQ >= questions.length && level === 1) {
+          level++;
+          currentQ = 0;
+          questions.push({ question: "¿Cuál es la capital de Brasil?", options: ["Río", "Brasilia", "São Paulo", "Salvador"], answer: 1 });
+        }
+        const q = questions[currentQ];
+        questionDiv.textContent = q.question;
+        optionsDiv.innerHTML = '';
+        messageDiv.textContent = '';
+        nextBtn.style.display = 'none';
+        q.options.forEach((opt, i) => {
+          const btn = document.createElement('button');
+          btn.textContent = opt;
+          btn.style.transition = 'transform 0.3s';
+          btn.onclick = () => {
+            btn.style.transform = 'scale(1.1)';
+            setTimeout(() => btn.style.transform = 'scale(1)', 300);
+            checkAnswer(i);
+          };
+          optionsDiv.appendChild(btn);
+        });
+      }
+
+      function checkAnswer(selected) {
+        const q = questions[currentQ];
+        if (selected === q.answer) {
+          messageDiv.textContent = "¡Correcto!";
+          score++;
+          scoreSpan.textContent = score;
+        } else {
+          messageDiv.textContent = `Incorrecto. La respuesta correcta es "${q.options[q.answer]}".`;
+        }
+        [...optionsDiv.children].forEach(b => b.disabled = true);
+        nextBtn.style.display = currentQ < questions.length - 1 || level > 1 ? 'inline-block' : 'none';
+      }
+
+      nextBtn.onclick = () => {
+        currentQ++;
+        if (currentQ < questions.length) {
+          loadQuestion();
+        } else if (level > 1) {
+          messageDiv.textContent = `Trivia terminada. Tu puntaje final es ${score} de ${questions.length}.`;
+          optionsDiv.innerHTML = '';
+          nextBtn.style.display = 'none';
+        } else {
+          loadQuestion();
+        }
+      };
+
+      resetBtn.onclick = () => {
+        level = 1;
+        currentQ = 0;
+        score = 0;
+        scoreSpan.textContent = score;
+        loadQuestion();
+      };
+
+      backBtn.onclick = () => {
+        clearInterval(gameInterval);
+        gameArea.style.display = 'none';
+        document.getElementById('menu').style.display = 'flex';
+        currentGame = 0;
+      };
+
+      loadQuestion();
+    }
+
+    // --- Juego 4: Piedra, Papel o Tijeras ---
+    function juegoPPT() {
+      gameArea.innerHTML = `
+        <h2>Piedra, Papel o Tijeras</h2>
+        <p>Elige tu jugada:</p>
+        <div class="rps-buttons">
+          <button data-choice="piedra">✊ Piedra</button>
+          <button data-choice="papel">✋ Papel</button>
+          <button data-choice="tijeras">✌️ Tijeras</button>
+        </div>
+        <div id="pptResult" style="margin-top:20px; font-size:18px; min-height:40px;"></div>
+        <div style="margin-top:15px; font-weight:bold;">Puntaje - Jugador: <span id="playerScore">0</span> | Computadora: <span id="compScore">0</span></div>
+        <button id="pptReset" style="margin-top:20px; background:#b33; color:#eee; border:none; padding:8px 12px; border-radius:5px; cursor:pointer;">Reiniciar Puntaje</button>
+        <button id="backBtn" style="margin-top:20px; background:#b33; color:#eee; border:none; padding:8px 12px; border-radius:5px; cursor:pointer;">Volver al Menú</button>
+      `;
+      let level = 1;
+      let playerScore = 0;
+      let compScore = 0;
+
+      const buttons = gameArea.querySelectorAll('.rps-buttons button');
+      const resultDiv = document.getElementById('pptResult');
+      const playerScoreSpan = document.getElementById('playerScore');
+      const compScoreSpan = document.getElementById('compScore');
+      const resetBtn = document.getElementById('pptReset');
+      const backBtn = document.getElementById('backBtn');
+
+      function getComputerChoice() {
+        const choices = ['piedra', 'papel', 'tijeras'];
+        return choices[Math.floor(Math.random() * choices.length)];
+      }
+
+      function decideWinner(player, computer) {
+        if (player === computer) return 'Empate';
+        if ((player === 'piedra' && computer === 'tijeras') || (player === 'papel' && computer === 'piedra') || (player === 'tijeras' && computer === 'papel')) return 'Ganaste';
+        return 'Perdiste';
+      }
+
+      buttons.forEach(btn => {
+        btn.onclick = () => {
+          const playerChoice = btn.dataset.choice;
+          const computerChoice = getComputerChoice();
+          const result = decideWinner(playerChoice, computerChoice);
+          if (result === 'Ganaste') playerScore++;
+          else if (result === 'Perdiste') compScore++;
+          if (playerScore >= level * 5) {
+            level++;
+            playerScore = 0;
+            compScore = 0;
+            resultDiv.textContent = `¡Nivel ${level} desbloqueado!`;
+            setTimeout(() => resultDiv.textContent = '', 2000);
+          }
+          resultDiv.textContent = `Tú: ${playerChoice} | Computadora: ${computerChoice} — ${result}`;
+          playerScoreSpan.textContent = playerScore;
+          compScoreSpan.textContent = compScore;
+          btn.style.transform = 'scale(1.1)';
+          setTimeout(() => btn.style.transform = 'scale(1)', 300);
+        };
+      });
+
+      resetBtn.onclick = () => {
+        level = 1;
+        playerScore = 0;
+        compScore = 0;
+        playerScoreSpan.textContent = playerScore;
+        compScoreSpan.textContent = compScore;
+        resultDiv.textContent = '';
+      };
+
+      backBtn.onclick = () => {
+        clearInterval(gameInterval);
+        gameArea.style.display = 'none';
+        document.getElementById('menu').style.display = 'flex';
+        currentGame = 0;
+      };
+    }
+
+    // --- Juego 5: Laberinto ---
+    function juegoLaberinto() {
+      gameArea.innerHTML = `
+        <h2>Laberinto</h2>
+        <p>Usa las flechas del teclado para mover el punto azul a la salida verde en 20 segundos.</p>
+        <canvas id="laberintoCanvas"></canvas>
+        <div id="laberintoMessage" style="margin-top:15px; font-weight:bold; min-height:24px;"></div>
+        <button id="laberintoReset" style="margin-top:20px; background:#b33; color:#eee; border:none; padding:8px 12px; border-radius:5px; cursor:pointer;">Reiniciar</button>
+        <button id="backBtn" style="margin-top:20px; background:#b33; color:#eee; border:none; padding:8px 12px; border-radius:5px; cursor:pointer;">Volver al Menú</button>
+        <div id="laberintoInfo" style="margin-top:15px; font-size:20px; font-weight:bold;">Nivel: 1 | Tiempo: 20 seg</div>
+      `;
+      const canvas = document.getElementById('laberintoCanvas');
+      const ctx = canvas.getContext('2d');
+      const message = document.getElementById('laberintoMessage');
+      const resetBtn = document.getElementById('laberintoReset');
+      const backBtn = document.getElementById('backBtn');
+      const info = document.getElementById('laberintoInfo');
+      let level = 1;
+      const tileSize = 40;
+      let maze = generateMaze();
+      let playerPos = { x: 1, y: 1 };
+      const exitPos = { x: 8, y: 7 };
+      let timeLeft = 20;
+      let gameInterval = null;
+      let gameActive = true;
+
+      function generateMaze() {
+        const baseMaze = [
+          [1,1,1,1,1,1,1,1,1,1],
+          [1,0,0,0,1,0,0,0,0,1],
+          [1,0,1,0,1,0,1,1,0,1],
+          [1,0,1,0,0,0,0,1,0,1],
+          [1,0,1,1,1,1,0,1,0,1],
+          [1,0,0,0,0,1,0,1,0,1],
+          [1,1,1,1,0,1,0,1,0,1],
+          [1,0,0,1,0,0,0,0,0,1],
+          [1,0,1,1,1,1,1,1,0,1],
+          [1,1,1,1,1,1,1,1,1,1]
+        ];
+        if (level > 1) {
+          for (let y = 0; y < 10; y++) {
+            for (let x = 0; x < 10; x++) {
+              if (baseMaze[y][x] === 0 && Math.random() < 0.1 * level) baseMaze[y][x] = 1;
+            }
+          }
+        }
+        return baseMaze;
+      }
+
+      function drawMaze() {
+        canvas.width = mazeSize * tileSize;
+        canvas.height = mazeSize * tileSize;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (let y = 0; y < mazeSize; y++) {
+          for (let x = 0; x < mazeSize; x++) {
+            if (maze[y][x] === 1) ctx.fillStyle = '#444';
+            else ctx.fillStyle = '#222';
+            ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+          }
+        }
+        ctx.fillStyle = '#2a9d8f';
+        ctx.fillRect(exitPos.x * tileSize, exitPos.y * tileSize, tileSize, tileSize);
+        ctx.fillStyle = '#00aaff';
+        ctx.beginPath();
+        ctx.arc(playerPos.x * tileSize + tileSize / 2, playerPos.y * tileSize + tileSize / 2, tileSize / 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      function canMoveTo(x, y) {
+        return maze[y] && maze[y][x] === 0;
+      }
+
+      function movePlayer(dx, dy) {
+        if (!gameActive) return;
+        const newX = playerPos.x + dx;
+        const newY = playerPos.y + dy;
+        if (canMoveTo(newX, newY)) {
+          playerPos = { x: newX, y: newY };
+          drawMaze();
+          checkWin();
+        }
+      }
+
+      function checkWin() {
+        if (playerPos.x === exitPos.x && playerPos.y === exitPos.y) {
+          gameActive = false;
+          clearInterval(gameInterval);
+          message.textContent = "¡Ganaste! Preparando nuevo nivel...";
+          message.classList.add('pulse');
+          setTimeout(nextLevel, 2000);
+        }
+      }
+
+      function nextLevel() {
+        level++;
+        maze = generateMaze();
+        playerPos = { x: 1, y: 1 };
+        timeLeft = 20;
+        gameActive = true;
+        message.textContent = "";
+        message.classList.remove('pulse');
+        info.textContent = `Nivel: ${level} | Tiempo: ${timeLeft} seg`;
+        drawMaze();
+        startTimer();
+      }
+
+      function startTimer() {
+        gameInterval = setInterval(() => {
+          timeLeft--;
+          info.textContent = `Nivel: ${level} | Tiempo: ${timeLeft} seg`;
+          info.style.color = timeLeft <= 5 ? '#e76f51' : '#eee';
+          if (timeLeft <= 0) {
+            clearInterval(gameInterval);
+            gameActive = false;
+            message.textContent = "¡Tiempo terminado! Intenta de nuevo.";
+            message.classList.add('pulse');
+            resetBtn.style.display = 'inline-block';
+          }
+        }, 1000);
+      }
+
+      function init() {
+        canvas.width = mazeSize * tileSize;
+        canvas.height = mazeSize * tileSize;
+        playerPos = { x: 1, y: 1 };
+        timeLeft = 20;
+        gameActive = true;
+        message.textContent = "";
+        message.classList.remove('pulse');
+        info.textContent = `Nivel: ${level} | Tiempo: ${timeLeft} seg`;
+        info.style.color = '#eee';
+        drawMaze();
+        startTimer();
+      }
+
+      const keyHandler = (e) => {
+        if (!gameActive) return;
+        switch (e.key) {
+          case 'ArrowUp': movePlayer(0, -1); break;
+          case 'ArrowDown': movePlayer(0, 1); break;
+          case 'ArrowLeft': movePlayer(-1, 0); break;
+          case 'ArrowRight': movePlayer(1, 0); break;
+        }
+      };
+      window.addEventListener('keydown', keyHandler);
+      resetBtn.onclick = init;
+      backBtn.onclick = () => {
+        window.removeEventListener('keydown', keyHandler);
+        clearInterval(gameInterval);
+        gameArea.style.display = 'none';
+        document.getElementById('menu').style.display = 'flex';
+        currentGame = 0;
+      };
+      init();
+    }
+
+    // --- Juego 6: Click Rápido ---
+    function juegoClickRapido() {
+      gameArea.innerHTML = `
+        <h2>Click Rápido</h2>
+        <p>Clica el círculo rojo tantas veces como puedas en 20 segundos.</p>
+        <button id="startClickGame" style="padding:8px 16px; margin-top:10px;">Comenzar Juego</button>
+        <div id="clickArea"></div>
+        <div id="clickScore" style="margin-top:15px; font-size:20px;"></div>
+        <button id="backBtn" style="margin-top:20px; background:#b33; color:#eee; border:none; padding:8px 12px; border-radius:5px; cursor:pointer;">Volver al Menú</button>
+      `;
+      let level = 1;
+      let score = 0;
+      let timeLeft = 20;
+      let gameInterval = null;
+      let target = null;
+
+      const clickArea = document.getElementById('clickArea');
+      const clickScore = document.getElementById('clickScore');
+      const startBtn = document.getElementById('startClickGame');
+      const backBtn = document.getElementById('backBtn');
+
+      function createTarget() {
+        if (target) target.remove();
+        target = document.createElement('div');
+        target.classList.add('click-target');
+        const size = 50 - (level * 5 > 20 ? 20 : level * 5);
+        target.style.width = size + 'px';
+        target.style.height = size + 'px';
+        const maxX = clickArea.clientWidth - size;
+        const maxY = clickArea.clientHeight - size;
+        const x = Math.random() * maxX;
+        const y = Math.random() * maxY;
+        target.style.left = x + 'px';
+        target.style.top = y + 'px';
+        clickArea.appendChild(target);
+        target.onclick = () => {
+          score++;
+          clickScore.textContent = `Tiempo: ${timeLeft} seg | Puntaje: ${score}`;
+          createTarget();
+        };
+      }
+
+      function startGame() {
+        score = 0;
+        timeLeft = 20;
+        clickScore.textContent = `Tiempo: ${timeLeft} seg | Puntaje: ${score}`;
+        startBtn.disabled = true;
+        clickArea.style.height = '200px';
+        createTarget();
+        gameInterval = setInterval(() => {
+          timeLeft--;
+          clickScore.textContent = `Tiempo: ${timeLeft} seg | Puntaje: ${score}`;
+          clickScore.style.color = timeLeft <= 5 ? '#e76f51' : '#eee';
+          if (timeLeft <= 0) {
+            clearInterval(gameInterval);
+            if (target) target.remove();
+            clickScore.textContent = `¡Tiempo terminado! Puntaje final: ${score}`;
+            startBtn.disabled = false;
+            clickArea.style.height = '0px';
+            if (score >= level * 10) nextLevel();
+          }
+        }, 1000);
+      }
+
+      function nextLevel() {
+        level++;
+        timeLeft = 20 - (level * 2 > 10 ? 10 : level * 2);
+        clickScore.textContent = `Nivel ${level} | Tiempo: ${timeLeft} seg | Puntaje: 0`;
+        setTimeout(startGame, 2000);
+      }
+
+      startBtn.onclick = startGame;
+      backBtn.onclick = () => {
+        clearInterval(gameInterval);
+        if (target) target.remove();
+        gameArea.style.display = 'none';
+        document.getElementById('menu').style.display = 'flex';
+        currentGame = 0;
+      };
+    }
+
+    // --- Juego 7: Recoge las Estrellas (3D) ---
+    function juegoEstrellas3D() {
+      gameArea.innerHTML = `
+        <h2>Recoge las Estrellas</h2>
+        <p>Usa WASD o flechas para moverte y recolectar las estrellas en 20 segundos.</p>
+        <canvas id="starsCanvas"></canvas>
+        <div id="starsInfo" style="margin-top:15px; font-size:20px; font-weight:bold;">Nivel: 1 | Tiempo: 20 seg | Estrellas: 0/5</div>
+        <div id="starsMessage" style="margin-top:15px; min-height:24px;"></div>
+        <button id="resetBtn" style="margin-top:20px; background:#b33; color:#eee; border:none; padding:8px 12px; border-radius:5px; cursor:pointer;">Reiniciar</button>
+        <button id="backBtn" style="margin-top:20px; background:#b33; color:#eee; border:none; padding:8px 12px; border-radius:5px; cursor:pointer;">Volver al Menú</button>
+      `;
+      const canvas = document.getElementById('starsCanvas');
+      const info = document.getElementById('starsInfo');
+      const message = document.getElementById('starsMessage');
+      const resetBtn = document.getElementById('resetBtn');
+      const backBtn = document.getElementById('backBtn');
+      let level = 1;
+      let starsToCollect = 5;
+      let collectedStars = 0;
+      let timeLeft = 20;
+      let gameInterval = null;
+      let gameActive = true;
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(75, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
+      const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+      renderer.setSize(canvas.clientWidth, 400);
+
+      const floorGeometry = new THREE.PlaneGeometry(10, 10);
+      const floorMaterial = new THREE.MeshBasicMaterial({ color: 0x222222, side: THREE.DoubleSide });
+      const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+      floor.rotation.x = Math.PI / 2;
+      floor.position.set(5, 0, 5);
+      scene.add(floor);
+
+      const playerGeometry = new THREE.SphereGeometry(0.3, 32, 32);
+      const playerMaterial = new THREE.MeshBasicMaterial({ color: 0x00aaff });
+      const player = new THREE.Mesh(playerGeometry, playerMaterial);
+      player.position.set(1, 0.3, 1);
+      scene.add(player);
+
+      let stars = [];
+      const starGeometry = new THREE.SphereGeometry(0.2, 32, 32);
+      const starMaterial = new THREE.MeshBasicMaterial({ color: 0xe76f51 });
+
+      function generateStars() {
+        stars.forEach(star => scene.remove(star));
+        stars = [];
+        for (let i = 0; i < starsToCollect; i++) {
+          const star = new THREE.Mesh(starGeometry, starMaterial);
+          let x, z;
+          do {
+            x = Math.floor(Math.random() * 9) + 1;
+            z = Math.floor(Math.random() * 9) + 1;
+          } while (x === 1 && z === 1 || stars.some(s => s.position.x === x && s.position.z === z));
+          star.position.set(x, 0.2, z);
+          scene.add(star);
+          stars.push(star);
+        }
+      }
+
+      camera.position.set(5, 5, 5);
+      camera.lookAt(5, 0, 5);
+
+      function movePlayer(dx, dz) {
+        if (!gameActive) return;
+        const newX = player.position.x + dx;
+        const newZ = player.position.z + dz;
+        if (newX >= 1 && newX <= 9 && newZ >= 1 && newZ <= 9) {
+          player.position.set(newX, 0.3, newZ);
+          camera.position.set(newX, 5, newZ + 3);
+          camera.lookAt(newX, 0, newZ);
+          checkCollision();
+        }
+      }
+
+      function checkCollision() {
+        stars = stars.filter(star => {
+          if (Math.abs(player.position.x - star.position.x) < 0.5 && Math.abs(player.position.z - star.position.z) < 0.5) {
+            scene.remove(star);
+            collectedStars++;
+            info.textContent = `Nivel: ${level} | Tiempo: ${timeLeft} seg | Estrellas: ${collectedStars}/${starsToCollect}`;
+            star.material.color.set(0xffffff);
+            setTimeout(() => star.material.color.set(0xe76f51), 200);
+            return false;
+          }
+          return true;
+        });
+        if (collectedStars >= starsToCollect) {
+          gameActive = false;
+          clearInterval(gameInterval);
+          message.textContent = "¡Nivel Completado! Preparando nuevo nivel...";
+          message.classList.add('pulse');
+          setTimeout(nextLevel, 2000);
+        }
+      }
+
+      function nextLevel() {
+        level++;
+        starsToCollect += 2;
+        collectedStars = 0;
+        timeLeft = 20 - (level * 2 > 10 ? 10 : level * 2);
+        gameActive = true;
+        message.textContent = "";
+        message.classList.remove('pulse');
+        info.textContent = `Nivel: ${level} | Tiempo: ${timeLeft} seg | Estrellas: ${collectedStars}/${starsToCollect}`;
+        generateStars();
+        startTimer();
+      }
+
+      function startTimer() {
+        gameInterval = setInterval(() => {
+          timeLeft--;
+          info.textContent = `Nivel: ${level} | Tiempo: ${timeLeft} seg | Estrellas: ${collectedStars}/${starsToCollect}`;
+          info.style.color = timeLeft <= 5 ? '#e76f51' : '#eee';
+          if (timeLeft <= 0) {
+            clearInterval(gameInterval);
+            gameActive = false;
+            message.textContent = "¡Tiempo terminado! Intenta de nuevo.";
+            message.classList.add('pulse');
+            resetBtn.style.display = 'inline-block';
+          }
+        }, 1000);
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+        renderer.render(scene, camera);
+      }
+
+      function init() {
+        generateStars();
+        info.textContent = `Nivel: ${level} | Tiempo: ${timeLeft} seg | Estrellas: ${collectedStars}/${starsToCollect}`;
+        info.style.color = '#eee';
+        message.textContent = "";
+        message.classList.remove('pulse');
+        startTimer();
+        animate();
+      }
+
+      window.addEventListener('keydown', (e) => {
+        if (!gameActive) return;
+        switch (e.key) {
+          case 'ArrowUp': case 'w': movePlayer(0, -1); break;
+          case 'ArrowDown': case 's': movePlayer(0, 1); break;
+          case 'ArrowLeft': case 'a': movePlayer(-1, 0); break;
+          case 'ArrowRight': case 'd': movePlayer(1, 0); break;
+        }
+      });
+      resetBtn.onclick = init;
+      backBtn.onclick = () => {
+        window.removeEventListener('keydown', keyHandler);
+        clearInterval(gameInterval);
+        gameArea.style.display = 'none';
+        document.getElementById('menu').style.display = 'flex';
+        currentGame = 0;
+      };
+      init();
+    }
+
+    // --- Juego 8: Escapar del Laberinto (2D) ---
+    function juegoEscaparLaberinto() {
+      gameArea.innerHTML = `
+        <h2>Escapar del Laberinto</h2>
+        <p>Usa WASD o flechas para moverte y escapar del perseguidor rojo hacia la salida verde en 20 segundos.</p>
+        <canvas id="mazeCanvas"></canvas>
+        <div id="gameInfo" style="margin-top:15px; font-size:20px; font-weight:bold;">Nivel: 1 | Tiempo: 20 seg</div>
+        <div id="gameMessage" style="margin-top:15px; min-height:24px;"></div>
+        <button id="resetBtn" style="margin-top:20px; background:#b33; color:#eee; border:none; padding:8px 12px; border-radius:5px; cursor:pointer;">Reiniciar</button>
+        <button id="backBtn" style="margin-top:20px; background:#b33; color:#eee; border:none; padding:8px 12px; border-radius:5px; cursor:pointer;">Volver al Menú</button>
+      `;
+      const canvas = document.getElementById('mazeCanvas');
+      const ctx = canvas.getContext('2d');
+      const info = document.getElementById('gameInfo');
+      const message = document.getElementById('gameMessage');
+      const resetBtn = document.getElementById('resetBtn');
+      const backBtn = document.getElementById('backBtn');
+      let level = 1;
+      const tileSize = 40;
+      let maze = generateMaze();
+      let playerPos = { x: 1, y: 1 };
+      let enemyPos = { x: 8, y: 8 };
+      const exitPos = { x: 8, y: 7 };
+      let timeLeft = 20;
+      let gameInterval = null;
+      let gameActive = true;
+
+      function generateMaze() {
+        const baseMaze = [
+          [1,1,1,1,1,1,1,1,1,1],
+          [1,0,0,0,1,0,0,0,0,1],
+          [1,0,1,0,1,0,1,1,0,1],
+          [1,0,1,0,0,0,0,1,0,1],
+          [1,0,1,1,1,1,0,1,0,1],
+          [1,0,0,0,0,1,0,1,0,1],
+          [1,1,1,1,0,1,0,1,0,1],
+          [1,0,0,1,0,0,0,0,0,1],
+          [1,0,1,1,1,1,1,1,0,1],
+          [1,1,1,1,1,1,1,1,1,1]
+        ];
+        if (level > 1) {
+          for (let y = 0; y < 10; y++) {
+            for (let x = 0; x < 10; x++) {
+              if (baseMaze[y][x] === 0 && Math.random() < 0.1 * level) baseMaze[y][x] = 1;
+            }
+          }
+        }
+        return baseMaze;
+      }
+
+      function drawMaze() {
+        canvas.width = 10 * tileSize;
+        canvas.height = 10 * tileSize;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (let y = 0; y < 10; y++) {
+          for (let x = 0; x < 10; x++) {
+            if (maze[y][x] === 1) ctx.fillStyle = '#444';
+            else ctx.fillStyle = '#222';
+            ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+          }
+        }
+        ctx.fillStyle = '#2a9d8f';
+        ctx.fillRect(exitPos.x * tileSize, exitPos.y * tileSize, tileSize, tileSize);
+        ctx.fillStyle = '#00aaff';
+        ctx.beginPath();
+        ctx.arc(playerPos.x * tileSize + tileSize / 2, playerPos.y * tileSize + tileSize / 2, tileSize / 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#e76f51';
+        ctx.beginPath();
+        ctx.arc(enemyPos.x * tileSize + tileSize / 2, enemyPos.y * tileSize + tileSize / 2, tileSize / 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      function canMoveTo(x, y) {
+        return maze[y] && maze[y][x] === 0 && !(x === enemyPos.x && y === enemyPos.y);
+      }
+
+      function movePlayer(dx, dy) {
+        if (!gameActive) return;
+        const newX = playerPos.x + dx;
+        const newY = playerPos.y + dy;
+        if (canMoveTo(newX, newY)) {
+          playerPos = { x: newX, y: newY };
+          drawMaze();
+          checkWin();
+        }
+      }
+
+      function moveEnemy() {
+        if (!gameActive) return;
+        const dx = Math.sign(playerPos.x - enemyPos.x);
+        const dy = Math.sign(playerPos.y - enemyPos.y);
+        const newX = enemyPos.x + dx;
+        const newY = enemyPos.y + (dx === 0 ? dy : 0);
+        if (canMoveTo(newX, newY)) {
+          enemyPos = { x: newX, y: newY };
+          drawMaze();
+        }
+        checkCaught();
+      }
+
+      function checkWin() {
+        if (playerPos.x === exitPos.x && playerPos.y === exitPos.y) {
+          gameActive = false;
+          clearInterval(gameInterval);
+          message.textContent = "¡Escapaste! Preparando nuevo nivel...";
+          message.classList.add('pulse');
+          setTimeout(nextLevel, 2000);
+        }
+      }
+
+      function checkCaught() {
+        if (playerPos.x === enemyPos.x && playerPos.y === enemyPos.y) {
+          gameActive = false;
+          clearInterval(gameInterval);
+          message.textContent = "¡Te atraparon! Intenta de nuevo.";
+          message.classList.add('pulse');
+          resetBtn.style.display = 'inline-block';
+        }
+      }
+
+      function nextLevel() {
+        level++;
+        maze = generateMaze();
+        playerPos = { x: 1, y: 1 };
+        enemyPos = { x: 8, y: 8 };
+        timeLeft = 20 - (level * 2 > 10 ? 10 : level * 2);
+        gameActive = true;
+        message.textContent = "";
+        message.classList.remove('pulse');
+        info.textContent = `Nivel: ${level} | Tiempo: ${timeLeft} seg`;
+        drawMaze();
+        startTimer();
+      }
+
+      function startTimer() {
+        gameInterval = setInterval(() => {
+          timeLeft--;
+          info.textContent = `Nivel: ${level} | Tiempo: ${timeLeft} seg`;
+          info.style.color = timeLeft <= 5 ? '#e76f51' : '#eee';
+          moveEnemy();
+          if (timeLeft <= 0) {
+            clearInterval(gameInterval);
+            gameActive = false;
+            message.textContent = "¡Tiempo terminado! Intenta de nuevo.";
+            message.classList.add('pulse');
+            resetBtn.style.display = 'inline-block';
+          }
+        }, 1000);
+      }
+
+      function init() {
+        canvas.width = 10 * tileSize;
+        canvas.height = 10 * tileSize;
+        playerPos = { x: 1, y: 1 };
+        enemyPos = { x: 8, y: 8 };
+        timeLeft = 20;
+        gameActive = true;
+        message.textContent = "";
+        message.classList.remove('pulse');
+        info.textContent = `Nivel: ${level} | Tiempo: ${timeLeft} seg`;
+        info.style.color = '#eee';
+        drawMaze();
+        startTimer();
+      }
+
+      const keyHandler = (e) => {
+        if (!gameActive) return;
+        switch (e.key) {
+          case 'ArrowUp': case 'w': movePlayer(0, -1); break;
+          case 'ArrowDown': case 's': movePlayer(0, 1); break;
+          case 'ArrowLeft': case 'a': movePlayer(-1, 0); break;
+          case 'ArrowRight': case 'd': movePlayer(1, 0); break;
+        }
+      };
+      window.addEventListener('keydown', keyHandler);
+      resetBtn.onclick = init;
+      backBtn.onclick = () => {
+        window.removeEventListener('keydown', keyHandler);
+        clearInterval(gameInterval);
+        gameArea.style.display = 'none';
+        document.getElementById('menu').style.display = 'flex';
+        currentGame = 0;
+      };
+      init();
+    }
+
+    // --- Selector de juego ---
+    function selectGame(num) {
+      if (currentGame !== 0) {
+        if (currentGame === 5 || currentGame === 7 || currentGame === 8) {
+          window.removeEventListener('keydown', window.keyHandler);
+        }
+        clearInterval(gameInterval);
+      }
+      currentGame = num;
+      document.getElementById('menu').style.display = 'none';
+      gameArea.style.display = 'block';
+      switch (num) {
+        case 1: juegoAdivinaNumero(); break;
+        case 2: juegoMemoria(); break;
+        case 3: juegoTrivia(); break;
+        case 4: juegoPPT(); break;
+        case 5: juegoLaberinto(); break;
+        case 6: juegoClickRapido(); break;
+        case 7: juegoEstrellas3D(); break;
+        case 8: juegoEscaparLaberinto(); break;
+        default: gameArea.innerHTML = "<p>Modo no válido.</p>";
+      }
+    }
+
+    // Initial display
+    document.getElementById('menu').style.display = 'flex';
+  </script>
+</body>
+</html>
