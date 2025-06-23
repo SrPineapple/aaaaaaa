@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>Juego Adivina el Número</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 20px; background: #f0f0f0; }
+  #juego { background: white; padding: 20px; max-width: 400px; margin: auto; border-radius: 8px; }
+  input[type=number] { width: 80px; }
+  button { padding: 5px 10px; margin-left: 10px; }
+  #mensaje { margin-top: 15px; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<div id="juego">
+  <h2>Juego: Adivina el número</h2>
+  <div id="info-nivel"></div>
+  <div>
+    <label>Ingresa un número: </label>
+    <input type="number" id="input-numero" />
+    <button id="boton-adivinar">Adivinar</button>
+  </div>
+  <div id="intentos-restantes"></div>
+  <div id="mensaje"></div>
+</div>
+
+<script>
+  const niveles = [
+    { nivel: 1, intentos: 5, max: 10 },
+    { nivel: 2, intentos: 5, max: 20 },
+    { nivel: 3, intentos: 5, max: 28 }
+  ];
+
+  let nivelActual = 0;
+  let intentosRestantes = niveles[0].intentos;
+  let numeroSecreto = generarNumero(niveles[0].max);
+
+  const infoNivel = document.getElementById('info-nivel');
+  const intentosRestantesDiv = document.getElementById('intentos-restantes');
+  const mensajeDiv = document.getElementById('mensaje');
+  const inputNumero = document.getElementById('input-numero');
+  const botonAdivinar = document.getElementById('boton-adivinar');
+
+  actualizarInterfaz();
+
+  botonAdivinar.addEventListener('click', () => {
+    const valor = parseInt(inputNumero.value);
+    if (isNaN(valor)) {
+      mensajeDiv.textContent = "Por favor ingresa un número válido.";
+      return;
+    }
+
+    if (valor === numeroSecreto) {
+      mensajeDiv.textContent = "Felicitaciones, has adivinado.";
+      nivelActual++;
+      if (nivelActual === niveles.length) {
+        mensajeDiv.textContent = "¡XUPALO JAJI WAJAJAJA!";
+        infoNivel.textContent = "";
+        intentosRestantesDiv.textContent = "";
+        botonAdivinar.disabled = true;
+        inputNumero.disabled = true;
+        return;
+      } else {
+        mensajeDiv.textContent += ` Pasas al nivel ${nivelActual + 1}.`;
+        iniciarNivel(nivelActual);
+      }
+    } else {
+      intentosRestantes--;
+      if (intentosRestantes === 0) {
+        mensajeDiv.textContent = `Se acabaron los intentos. El número era ${numeroSecreto}. Juego terminado.`;
+        botonAdivinar.disabled = true;
+        inputNumero.disabled = true;
+      } else {
+        mensajeDiv.textContent = valor < numeroSecreto ? "Muy bajo." : "Muy alto.";
+        actualizarIntentos();
+      }
+    }
+    inputNumero.value = "";
+    inputNumero.focus();
+  });
+
+  function iniciarNivel(nivel) {
+    intentosRestantes = niveles[nivel].intentos;
+    numeroSecreto = generarNumero(niveles[nivel].max);
+    actualizarInterfaz();
+  }
+
+  function actualizarInterfaz() {
+    infoNivel.textContent = `Nivel ${niveles[nivelActual].nivel}: Adivina un número entre 0 y ${niveles[nivelActual].max}`;
+    actualizarIntentos();
+    mensajeDiv.textContent = "";
+    inputNumero.value = "";
+    inputNumero.disabled = false;
+    botonAdivinar.disabled = false;
+    inputNumero.focus();
+  }
+
+  function actualizarIntentos() {
+    intentosRestantesDiv.textContent = `Intentos restantes: ${intentosRestantes}`;
+  }
+
+  function generarNumero(max) {
+    return Math.floor(Math.random() * (max + 1)); // incluye el 0 y el max
+  }
+</script>
+
+</body>
+</html>
